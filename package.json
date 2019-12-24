@@ -1,0 +1,15 @@
+{
+  "name": "computer-info",
+  "version": "1.0.0",
+  "description": "Show the system information",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "System",
+    "Info"
+  ],
+  "author": "@jorcalle11",
+  "license": "MIT"
+}
