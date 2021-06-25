@@ -52,11 +52,11 @@ async function getGpuInfo() {
       getVideoCards: getVideoCardsFromMac,
     },
     win32: {
-      comand:
+      command:
         'wmic path Win32_VideoController get AdapterRAM, Name /format:value',
       getVideoCards: getVideoCardsFromWindows,
     },
-    linux: { comand: 'sudo lshw -C display' },
+    linux: { command: 'sudo lshw -C display' },
   };
 
   const { command, getVideoCards } = videoCardsByPlatform[platform];
@@ -116,7 +116,7 @@ async function getDiskInfo() {
       getDisk: getDiskInfoFromWindows,
     },
     linux: {
-      comand: '',
+      command: '',
     },
   };
 
