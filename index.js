@@ -12,7 +12,7 @@ async function showSystemInfo() {
     CPU: getCpuInfo(),
     Memory: getMemoryInfo(),
     GPU: await getGpuInfo(),
-    Disk: await getDiskInfo()
+    Disk: await getDiskInfo(),
   });
 }
 
@@ -32,7 +32,7 @@ function getMemoryInfo(unit = 'gigabytes') {
 
 function convertBytes({ bytes = 0, unit = 'gigabytes' }) {
   const kilobyte = 1024;
-  const divide = total => total / kilobyte;
+  const divide = (total) => total / kilobyte;
   let total = 0;
 
   if (unit === 'megabytes') {
@@ -46,29 +46,35 @@ function convertBytes({ bytes = 0, unit = 'gigabytes' }) {
 
 async function getGpuInfo() {
   const platform = os.platform();
+  const videoCardsByPlatform = {
+    darwin: {
+      command: 'system_profiler SPDisplaysDataType -json',
+      getVideoCards: getVideoCardsFromMac,
+    },
+    win32: {
+      comand:
+        'wmic path Win32_VideoController get AdapterRAM, Name /format:value',
+      getVideoCards: getVideoCardsFromWindows,
+    },
+    linux: { comand: 'sudo lshw -C display' },
+  };
 
-  switch (platform) {
-    case 'darwin': {
-      command = 'system_profiler | grep GeForce';
-      break;
-    }
-    case 'win32':
-      return getVideoCardsFromWindows();
-    case 'linux':
-    default:
-      command = 'sudo lshw -C display';
-      break;
+  const { command, getVideoCards } = videoCardsByPlatform[platform];
+  const { stdout } = await exec(command);
+  return getVideoCards(stdout);
+
+  function getVideoCardsFromMac(stdout) {
+    const { SPDisplaysDataType = [] } = JSON.parse(stdout);
+    const videoCards = SPDisplaysDataType.map((card) => ({
+      model: card.sppci_model,
+      vendor: card.spdisplays_vendor,
+      memory: card?._spdisplays_vram || card.spdisplays_vram,
+    }));
+    return videoCards;
   }
 
-  async function getVideoCardsFromWindows() {
-    const command =
-      'wmic path Win32_VideoController get AdapterRAM, Name /format:value';
-
-    const { stdout } = await exec(command);
-    let displayAdapters = stdout
-      .split('\r\r\n')
-      .slice(1, -1)
-      .filter(Boolean);
+  async function getVideoCardsFromWindows(stdout) {
+    let displayAdapters = stdout.split('\r\r\n').slice(1, -1).filter(Boolean);
 
     const videoCards = [];
 
@@ -82,7 +88,7 @@ async function getGpuInfo() {
         if (Number.isInteger(+value)) {
           const memorySize = convertBytes({
             bytes: +value,
-            unit: 'gigabytes'
+            unit: 'gigabytes',
           });
 
           value = `${memorySize}GB`;
@@ -100,26 +106,40 @@ async function getGpuInfo() {
 
 async function getDiskInfo() {
   const platform = os.platform();
+  const diskInfoByPlatform = {
+    darwin: {
+      command: 'system_profiler SPNVMeDataType -json',
+      getDisk: getDiskFromMac,
+    },
+    win32: {
+      command: 'wmic diskdrive get Model',
+      getDisk: getDiskInfoFromWindows,
+    },
+    linux: {
+      comand: '',
+    },
+  };
 
-  switch (platform) {
-    case 'win32':
-      return getDiskInfoFromWindows();
-      break;
-    case 'linux':
-    default:
-      break;
-  }
+  const { command, getDisk } = diskInfoByPlatform[platform];
+  const { stdout } = await exec(command);
+  return getDisk(stdout);
 
-  async function getDiskInfoFromWindows() {
-    const command = 'wmic diskdrive get Model';
-    const { stdout } = await exec(command);
+  function getDiskInfoFromWindows(stdout) {
     const model = stdout
       .split('\r\r\n')
       .slice(1, -1)
       .filter(Boolean)
-      .map(d => d.trim());
+      .map((d) => d.trim());
 
     return model;
+  }
+
+  function getDiskFromMac(stdout) {
+    const { SPNVMeDataType } = JSON.parse(stdout);
+    const ssds = SPNVMeDataType.map(({ _items }) => _items)
+      .flat()
+      .map((ssd) => ({ model: ssd.device_model, size: ssd.size }));
+    return ssds;
   }
 }
 
